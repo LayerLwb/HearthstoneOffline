@@ -26,6 +26,11 @@ on:
         type: boolean
         required: false
         default: false
+      embed_art:
+        description: '是否内置完整原画(内置原画APK体积约800MB，默认false生成25MB轻量版并通过手机Download/HSO.zip加载)'
+        type: boolean
+        required: false
+        default: false
 
   # 当推送带 v 开头的 tag 时自动触发发布 (例如: git tag v1.5.8 && git push origin v1.5.8)
   push:
@@ -74,15 +79,21 @@ jobs:
             NOTES="自动发布的 Release 版本: ${VERSION}"
             DO_RELEASE="true"
           else
-            VERSION="v1.5.7-dev-${GITHUB_SHA::7}"
+            VERSION="v1.5.8-dev-${GITHUB_SHA::7}"
             TITLE="开发预览版 ${VERSION}"
             NOTES="基于 commit ${GITHUB_SHA} 的开发构建"
             DO_RELEASE="false"
+          fi
+          if [ "${{ inputs.embed_art }}" = "true" ]; then
+            EMBED_FLAG="--embed-art"
+          else
+            EMBED_FLAG=""
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "title=${TITLE}" >> $GITHUB_OUTPUT
           echo "notes=${NOTES}" >> $GITHUB_OUTPUT
           echo "do_release=${DO_RELEASE}" >> $GITHUB_OUTPUT
+          echo "embed_flag=${EMBED_FLAG}" >> $GITHUB_OUTPUT
 
       - name: Prepare Keystore
         run: |
@@ -105,7 +116,8 @@ jobs:
             --keystore "android/keystore/hso.keystore" \
             --storepass "android" \
             --keypass "android" \
-            --alias "androiddebugkey"
+            --alias "androiddebugkey" \
+            ${{ steps.get_version.outputs.embed_flag }}
 
       - name: Verify APK Signature (确保覆盖安装)
         run: |

@@ -10,8 +10,8 @@ android {
         applicationId "com.hearthstone.offline"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.5.7"
+        versionCode 2
+        versionName "1.5.8"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -31,8 +31,10 @@ HearthstoneOffline/
 ├── android/                         # Android 原生包装层
 │   ├── app/                         # App 模块
 │   │   ├── src/main/AndroidManifest.xml
-│   │   ├── src/main/java/com/hearthstone/offline/MainActivity.java # 核心容器
+│   │   ├── src/main/java/com/hearthstone/offline/MainActivity.java # 核心容器(支持Download/HSO.zip挂载)
 │   │   └── src/main/res/            # 应用程序图标与资源
+│   ├── prebuilt/                    # 预编译核心二进制组件 (classes.dex, AndroidManifest.xml)
+│   ├── keystore/                    # 签名密钥库
 │   ├── build.gradle                 # 构建脚本
 │   └── settings.gradle
 ├── web/                             # Web 游戏核心
@@ -51,6 +53,9 @@ HearthstoneOffline/
 │   │   └── art-manifest.json        # 原画哈希清单
 │   └── scripts/
 │       └── download_art.py          # 原画多线程下载与提取脚本
+├── scripts/                         # CI/CD 构建与辅助脚本
+│   ├── build_ci_apk.py              # CI 自动化构建与签名脚本 (支持轻量/全量构建)
+│   └── package_hso_assets.py        # HSO.zip 美术原画打包工具
 ├── tools/                           # 逆向与数据分析工具
 │   ├── inspect_hand.py              # 手牌布局分析
 │   └── scratch_whizbang_analysis.txt# 威兹班套牌逆向笔记
@@ -79,8 +84,12 @@ python -m http.server 8080
 ```
 启动后在浏览器中打开 `http://localhost:8080` 即可开始游戏。
 
-### 方式 2：Android 端安装
-前往 [GitHub Releases](https://github.com/LayerLwb/HearthstoneOffline/releases) 下载最新签名的 `HearthstoneOffline-v1.5.7.apk` 直接安装到手机或 Android 模拟器即可。
+### 方式 2：Android 端安装与美术资源包加载
+1. 前往 [GitHub Releases](https://github.com/LayerLwb/HearthstoneOffline/releases) 下载最新签名的 `HearthstoneOffline-v1.5.8.apk` 直接安装到手机或 Android 模拟器。
+2. **美术资源包（HSO.zip）放置**：
+   - 将完整卡牌美术原画包 `HSO.zip` 复制到手机的 **`Download`（下载）** 目录下（例如 `/storage/emulated/0/Download/HSO.zip`）。
+   - 启动游戏后，底层容器会自动检索并挂载 `HSO.zip` 中的 22,000+ 张高清卡牌原画（免解压直接读取），提示「🎨 已成功加载美术资源包」。
+   - **优势**：只需放置一次 `HSO.zip`，后续更新游戏只需下载约 25MB 的轻量 APK 即可直接覆盖安装，极大节省流量与安装时间！
 
 ---
 

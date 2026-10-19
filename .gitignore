@@ -7,6 +7,9 @@ app/build/
 *.aab
 *.dex
 *.class
+*.zip
+HSO.zip
+!android/prebuilt/*
 
 # Python
 __pycache__/

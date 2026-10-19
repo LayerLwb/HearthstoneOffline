@@ -68,10 +68,15 @@ flowchart TD
   - **手牌优势 (Card Advantage)**：手牌数量、高费斩杀线潜力。
   - **节奏模拟 (Tempo & Face Damage)**：敌方英雄剩余血量评估，智能切换解场模式与走脸抢血模式。
 
-### 2.3 原画与资产装载管道 (Asset Resolution Pipeline)
-- 离线优先模式：首先检索本地 `web/art/{cardId}.webp`，若存在则直接高速读取。
-- 容错保底机制：若本地缺失原画，自动显示 `assets/card-back.svg`（经典卡背），同时支持在联网环境下从 HearthstoneJSON CDN (`https://art.hearthstonejson.com/v1/512x/{cardId}.webp`) 动态拉取。
-- 本次升级在 `web/index.html` 的 CSP 策略中增加了对 GitHub 与 HearthstoneJSON 的安全白名单放行。
+### 2.3 原画与资产装载管道 (Asset Resolution Pipeline & HSO.zip Loader)
+- **多层级离线资产检索链路**：
+  1. **层级 1 (APK 内置 Assets)**：`assetManager.open(decodedPath)`。若为全量打包 APK，则直接以 0 延迟由系统底层装配。
+  2. **层级 2 (外部扩展美术包 HSO.zip)**：若 APK 内部未内置原画（轻量版 APK，体积仅约 25MB），原生容器启动时自动检索手机公共存储（优先 `/sdcard/Download/HSO.zip`）及应用私有目录。
+     - 底层基于 `java.util.zip.ZipFile` 实现常驻中心目录哈希检索，O(1) 索引命中，支持在 WebResourceResponse 中以流式（Stream）零拷贝直接注入 WebView，无额外内存消耗，免去庞大的解压过程。
+  3. **层级 3 (CDN 渐进回退)**：若本地与外部扩展包均未命中，系统容错降级回退至 `assets/card-back.svg`（经典卡背），并在联网状态下由前端从 HearthstoneJSON CDN 动态补齐。
+- **安全与权限策略**：
+  - AndroidManifest 配置了 `READ_EXTERNAL_STORAGE`、`MANAGE_EXTERNAL_STORAGE` 与 `android:requestLegacyExternalStorage="true"`，全面向下兼容 Android 7.0 至 Android 14+。
+  - 在 `web/index.html` 的 CSP 策略中白名单放行相关协议。
 
 ---
 
