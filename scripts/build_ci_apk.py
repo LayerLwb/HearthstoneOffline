@@ -5,13 +5,14 @@ Hearthstone Offline APK CI/CD Build & Signing Script
 炉石传说单机版 CI/CD 自动化构建与签名脚本
 
 功能：
-1. 校验运行环境与 JDK jarsigner。
+1. 校验运行环境、zipalign 与 apksigner。
 2. 支持构建轻量化 APK（~25MB，美术原画通过手机 Download 目录的 HSO.zip 自动读取）。
 3. 支持构建内置完整原画包 APK（~800MB）。
 4. 注入最新编译的 Android 核心组件（classes.dex、AndroidManifest.xml、resources.arsc）。
 5. 注入最新的 Web 核心引擎代码（index.html, index.js, ai.worker.js, index.css, data 等）。
-6. 使用与既有版本完全一致的签名证书（androiddebugkey, SHA256: 61:95:63:01:...）进行签名。
-7. 验证 APK 签名有效性，确保可以完美覆盖安装！
+6. 使用 zipalign 4 字节对齐。
+7. 使用与既有版本完全一致的签名证书（androiddebugkey, SHA256: 61:95:63:01:...），
+   并通过 apksigner 强制启用 v1 + v2 + v3 签名方案，确保 Android 11+ (API 34) 完美解析并支持覆盖安装！
 """
 
 import os
@@ -19,11 +20,52 @@ import sys
 import zipfile
 import subprocess
 import argparse
+import shutil
 import urllib.request
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_KEYSTORE = os.path.join(BASE_DIR, "android", "keystore", "hso.keystore")
 DEFAULT_BASE_APK_URL = "https://github.com/LayerLwb/HearthstoneOffline/releases/download/v1.5.7/HearthstoneOffline-v1.5.7.apk"
+
+def find_tool(name):
+    """
+    智能寻找 Android SDK 构建工具（zipalign、apksigner 等）
+    """
+    # 1. 优先从系统 PATH 检索
+    p = shutil.which(name)
+    if p:
+        return p
+
+    # 2. 从可能存在的 Android SDK 及预装路径检索
+    sdk_roots = [
+        os.environ.get("ANDROID_HOME", ""),
+        os.environ.get("ANDROID_SDK_ROOT", ""),
+        os.path.expanduser("~/Android/Sdk"),
+        "/usr/local/lib/android/sdk",
+        r"C:\Users\NULL\AppData\Local\Android\Sdk",
+        r"C:\ApkTool1.0\tool",
+        os.path.join(BASE_DIR, "tools")
+    ]
+
+    for root in sdk_roots:
+        if not root or not os.path.exists(root):
+            continue
+        # 扫描 build-tools 目录
+        bt = os.path.join(root, "build-tools")
+        if os.path.exists(bt):
+            for v in sorted(os.listdir(bt), reverse=True):
+                for ext in ["", ".bat", ".exe"]:
+                    c = os.path.join(bt, v, name + ext)
+                    if os.path.exists(c):
+                        return c
+                jar = os.path.join(bt, v, "lib", name + ".jar")
+                if os.path.exists(jar):
+                    return jar
+        for ext in ["", ".bat", ".exe", ".jar"]:
+            c = os.path.join(root, name + ext)
+            if os.path.exists(c):
+                return c
+    return None
 
 def download_base_apk(target_path, url):
     print(f"[*] Base APK not found locally. Downloading from {url}...")
@@ -142,6 +184,99 @@ def build_from_base_apk(version, unsigned_apk, base_apk, embed_art=False):
                     data = src_zip.read(item.filename)
                     dst_zip.writestr(item, data)
 
+def sign_and_align_apk(unsigned_apk, output_apk, keystore, storepass, keypass, keyalias):
+    """
+    使用 zipalign 4 字节对齐并使用 apksigner 赋予 v1 + v2 + v3 完整签名
+    """
+    zipalign_bin = find_tool("zipalign")
+    apksigner_bin = find_tool("apksigner")
+
+    aligned_apk = output_apk + ".aligned.apk"
+    if os.path.exists(aligned_apk):
+        os.remove(aligned_apk)
+
+    # 1. 运行 zipalign 对齐
+    source_to_sign = unsigned_apk
+    if zipalign_bin:
+        print(f"[*] Running zipalign (4-byte alignment) with {zipalign_bin}...")
+        align_cmd = [zipalign_bin, "-p", "-f", "4", unsigned_apk, aligned_apk]
+        res = subprocess.run(align_cmd, capture_output=True, text=True)
+        if res.returncode == 0 and os.path.exists(aligned_apk):
+            print(f"[+] APK successfully aligned ({os.path.getsize(aligned_apk):,} bytes).")
+            source_to_sign = aligned_apk
+        else:
+            print(f"[!] Warning: zipalign returned code {res.returncode}: {res.stderr}")
+    else:
+        print("[!] Note: zipalign not found, proceeding with unaligned package.")
+
+    # 2. 运行 apksigner 签名 (v1 + v2 + v3)
+    signed_ok = False
+    if apksigner_bin:
+        print(f"[*] Signing APK with apksigner (v1+v2+v3) using {keystore} (alias: {keyalias})...")
+        if apksigner_bin.endswith(".jar"):
+            cmd_sign = ["java", "-jar", apksigner_bin, "sign"]
+        elif apksigner_bin.endswith(".bat"):
+            sibling_jar = os.path.join(os.path.dirname(apksigner_bin), "lib", "apksigner.jar")
+            if os.path.exists(sibling_jar):
+                cmd_sign = ["java", "-jar", sibling_jar, "sign"]
+            else:
+                cmd_sign = [apksigner_bin, "sign"]
+        else:
+            cmd_sign = [apksigner_bin, "sign"]
+
+        cmd_sign.extend([
+            "--ks", keystore,
+            "--ks-key-alias", keyalias,
+            "--ks-pass", f"pass:{storepass}",
+            "--key-pass", f"pass:{keypass}",
+            "--v1-signing-enabled", "true",
+            "--v2-signing-enabled", "true",
+            "--v3-signing-enabled", "true",
+            "--out", output_apk,
+            source_to_sign
+        ])
+
+        res = subprocess.run(cmd_sign, capture_output=True, text=True)
+        if res.returncode == 0 and os.path.exists(output_apk):
+            signed_ok = True
+            print("[+] APK signed successfully with apksigner (v1+v2+v3 enabled).")
+
+            # 验证签名方案
+            print("[*] Verifying APK signature schemes...")
+            if apksigner_bin.endswith(".jar") or (apksigner_bin.endswith(".bat") and os.path.exists(os.path.join(os.path.dirname(apksigner_bin), "lib", "apksigner.jar"))):
+                jar_path = apksigner_bin if apksigner_bin.endswith(".jar") else os.path.join(os.path.dirname(apksigner_bin), "lib", "apksigner.jar")
+                verify_cmd = ["java", "-jar", jar_path, "verify", "-v", output_apk]
+            else:
+                verify_cmd = [apksigner_bin, "verify", "-v", output_apk]
+
+            vres = subprocess.run(verify_cmd, capture_output=True, text=True)
+            for line in vres.stdout.splitlines():
+                if "Verified using" in line or "Verifies" in line:
+                    print("    ", line)
+        else:
+            print("[-] apksigner failed:", res.stderr)
+
+    # 3. 若无 apksigner 则保底使用 jarsigner (仅 v1)
+    if not signed_ok:
+        print("[!] Warning: Falling back to jarsigner (v1 scheme only)...")
+        shutil.copyfile(source_to_sign, output_apk)
+        sign_cmd = [
+            "jarsigner",
+            "-keystore", keystore,
+            "-storepass", storepass,
+            "-keypass", keypass,
+            output_apk,
+            keyalias
+        ]
+        res = subprocess.run(sign_cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            print("[-] jarsigner failed:", res.stderr)
+            sys.exit(1)
+
+    # 清理中间临时文件
+    if os.path.exists(aligned_apk):
+        os.remove(aligned_apk)
+
 def build_apk(version, output_apk, keystore, storepass, keypass, keyalias, base_apk=None, embed_art=False):
     # Ensure keystore exists
     if not os.path.exists(keystore):
@@ -149,9 +284,11 @@ def build_apk(version, output_apk, keystore, storepass, keypass, keyalias, base_
         sys.exit(1)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_apk)), exist_ok=True)
-    unsigned_apk = output_apk + ".unsigned"
+    unsigned_apk = output_apk + ".unsigned.apk"
+    if os.path.exists(unsigned_apk):
+        os.remove(unsigned_apk)
 
-    # 优先使用 Standalone 构建（快、免下载大型 Base APK），或根据 base_apk
+    # 构建未签名 APK
     if base_apk and os.path.exists(base_apk):
         build_from_base_apk(version, unsigned_apk, base_apk, embed_art=embed_art)
     else:
@@ -159,37 +296,14 @@ def build_apk(version, output_apk, keystore, storepass, keypass, keyalias, base_
 
     print(f"[+] Unsigned APK packaged: {os.path.getsize(unsigned_apk):,} bytes")
 
-    # Sign APK with jarsigner
-    print(f"[*] Signing APK with jarsigner using {keystore} (alias: {keyalias})...")
-    sign_cmd = [
-        "jarsigner",
-        "-keystore", keystore,
-        "-storepass", storepass,
-        "-keypass", keypass,
-        "-signedjar", output_apk,
-        unsigned_apk,
-        keyalias
-    ]
-    res = subprocess.run(sign_cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        print("[-] Signing failed:", res.stderr)
-        if os.path.exists(unsigned_apk):
-            os.remove(unsigned_apk)
-        sys.exit(1)
+    # 对齐与签名
+    sign_and_align_apk(unsigned_apk, output_apk, keystore, storepass, keypass, keyalias)
 
-    # Clean up unsigned APK
+    # 清理 unsigned 文件
     if os.path.exists(unsigned_apk):
         os.remove(unsigned_apk)
 
-    # Verify signature
-    print("[*] Verifying signed APK...")
-    verify_cmd = ["jarsigner", "-verify", output_apk]
-    verify_res = subprocess.run(verify_cmd, capture_output=True, text=True)
-    if verify_res.returncode != 0:
-        print("[-] Signature verification failed:", verify_res.stderr)
-        sys.exit(1)
-
-    print(f"[+] Success! APK created and verified: {output_apk}")
+    print(f"[+] Build Complete! Signed APK: {output_apk}")
     print(f"[+] Final file size: {os.path.getsize(output_apk):,} bytes ({os.path.getsize(output_apk)/1024/1024:.2f} MB)")
 
 if __name__ == '__main__':

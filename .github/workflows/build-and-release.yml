@@ -108,6 +108,11 @@ jobs:
           # 验证密钥有效性
           keytool -list -keystore android/keystore/hso.keystore -storepass android
 
+      - name: Install Android Build Tools (zipalign & apksigner)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zipalign apksigner
+
       - name: Build & Sign APK
         run: |
           python scripts/build_ci_apk.py \
@@ -119,10 +124,10 @@ jobs:
             --alias "androiddebugkey" \
             ${{ steps.get_version.outputs.embed_flag }}
 
-      - name: Verify APK Signature (确保覆盖安装)
+      - name: Verify APK Signature (确保覆盖安装与 v2/v3 签名兼容)
         run: |
-          echo "[*] Checking signature certificate..."
-          jarsigner -verify -verbose -certs "dist/HearthstoneOffline-${{ steps.get_version.outputs.version }}.apk" | head -n 30
+          echo "[*] Checking signature with apksigner..."
+          apksigner verify --verbose --print-certs "dist/HearthstoneOffline-${{ steps.get_version.outputs.version }}.apk"
 
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
