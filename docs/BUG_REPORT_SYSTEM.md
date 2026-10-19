@@ -1,80 +1,50 @@
-# 卡牌缺陷报告与 Issue 自动化系统说明
+# 卡牌缺陷报告与 Issue 自动化中转站系统说明
 
-本项目在卡牌详情模块中深度集成了缺陷反馈系统，方便玩家、开发者与社区成员在测试单机版卡牌机制时，能够一键定位异常卡牌并将精确的卡牌上下文与问题描述反馈至 GitHub 仓库。
+本项目在卡牌详情模块中深度集成了缺陷反馈系统，方便玩家与社区测试单机版卡牌机制时，能够一键定位异常卡牌并将精确的卡牌上下文与问题描述直接提交。
 
----
-
-## 1. 功能特性
-
-1. **零学习成本**：玩家在“我的收藏”浏览任意卡牌（含随从、法术、英雄、衍生牌）时，详情界面均提供「🐞 报告Bug」按钮。
-2. **自动化元数据提取**：
-   - 卡牌官方名称
-   - 卡牌数据库唯一 ID（如 `CS2_029`, `BOT_914`）
-   - 职业归属、法力值消耗、稀有品质、扩展包系列
-   - 当前卡牌效果描述文本与自定义规则说明
-3. **强制性必填校验**：
-   - 必须输入具体的 Bug 描述，杜绝空白误触或无意义提交。
-   - 输入框具有动态错误反馈与红色边框高亮警告。
-4. **即时协同与一键跳转**：
-   - 自动生成标准化 GitHub Issue 模版。
-   - 自动复制到剪贴板，并一键调起浏览器直达 GitHub New Issue 提交页。
+为了彻底免去玩家需要登录 GitHub 账号的繁琐流程，系统接入了专用中转服务（`https://mail.zrz.me/hsobr/index.php`），实现游戏内**一键静默自动提交**。
 
 ---
 
-## 2. 界面效果与代码实现
+## 1. 核心流程与特性
 
-### 2.1 触发按钮与状态
-在 `web/assets/index.js` 中的 `card-detail-info` 区域注入：
-```javascript
-T.jsx("div", {
-  className: "card-detail-actions",
-  style: { marginTop: "14px", display: "flex", gap: "10px" },
-  children: T.jsx("button", {
-    type: "button",
-    className: "subtle-button bug-report-btn",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: "6px",
-      padding: "8px 14px",
-      borderRadius: "4px",
-      border: "1px solid #d45d5d88",
-      color: "#fca5a5",
-      background: "rgba(185, 28, 28, 0.15)",
-      cursor: "pointer",
-      fontSize: "12px",
-    },
-    onClick: () => {
-      setBugReportCard(q);
-      setBugDesc("");
-      setBugError("");
-    },
-    children: "🐞 报告Bug",
-  }),
-});
-```
+1. **零登录门槛**：玩家在“我的收藏”浏览任意卡牌时，点击「🐞 报告Bug」，无需注册或登录 GitHub 账号。
+2. **自动化元数据补全**：
+   - 自动获取卡牌名称、唯一编号（如 `REV_018`）、职业、费用、品质、扩展包系列与原版效果描述。
+   - 自动采集移动端运行环境（如 Android 版本、手机品牌与具体型号）。
+   - 自动填充复现步骤与预期结果模版。
+3. **安全与协议对接**：
+   - 原生层 `AndroidBridge.submitBugReport()` 自动获取中转站的 Session Cookie 与 CSRF 令牌。
+   - 将结构化表单数据以 `application/x-www-form-urlencoded` 格式 POST 提交至中转站。
+   - 中转站校验通过后，使用项目维护者权限自动在 GitHub 仓库创建标准化 Issue。
+4. **实时反馈与异常提示**：
+   - 提交过程中按钮显示“正在提交中...”，防止误触与重复提交。
+   - 提交成功自动弹出 Toast 感谢通知并关闭弹窗；若中转站触发频率限制（如 90 秒内重复提交）或异常，界面即时高亮展示具体原因。
 
-### 2.2 提交验证与 Issue 格式化
-```javascript
-const desc = bugDesc.trim();
-if (!desc) {
-  setBugError("必须进行 Bug 描述才能提交！");
-  return;
-}
-const card = bugReportCard;
-const issueTitle = `[Bug] 卡牌异常: ${card.name} (${card.id})`;
-const issueBody = `### 缺陷卡牌信息\n- **卡牌名称**: ${card.name}\n- **卡牌编号**: ${card.id}\n- **职业**: ${card.cardClass ?? "中立"}\n- **费用**: ${card.cost ?? 0}\n- **品质**: ${Sz[card.rarity ?? ""] ?? "普通"}\n- **系列**: ${yz[card.set ?? ""] ?? card.set ?? "未知"}\n- **卡牌描述**: ${card.text ?? "无"}\n\n### Bug 描述\n${desc}\n\n---\n*提交环境: 炉石传说单机版客户端 / 卡牌详情内置反馈*`;
+---
 
-const repo = window.HSO_CONFIG?.GITHUB_REPO || "LayerLwb/HearthstoneOffline";
-const githubUrl = `https://github.com/${repo}/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}`;
+## 2. 字段映射对应表
 
-try {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(issueBody);
-  }
-} catch (_) {}
+| 字段名称 | 来源/规则 | 示例 |
+| :--- | :--- | :--- |
+| `type` | 固定为 `bug` | `bug` |
+| `version` | 游戏当前版本 | `v1.5.8` |
+| `title` | 自动格式化卡牌标题 | `[卡牌Bug] 雷纳索尔王子 (REV_018) 异常反馈` |
+| `environment` | 原生端采集系统版本与设备型号 | `Android 14 (Xiaomi 23049RAD8C)` |
+| `steps` | 自动生成对应卡牌的操作步骤 | `1. 在对局或我的收藏中操作【雷纳索尔王子】...` |
+| `expected` | 自动带入原版卡牌规则与描述 | `卡牌效果应符合原版规则描述：你的牌库和初始生命值为40。` |
+| `actual` | 玩家填写的详细缺陷现象 | `在自定义对局中生命值依然为30血未生效` |
+| `extra` | 卡牌完整元数据 Markdown 表格 | 包含编号、品质、系列、费用及客户端来源标签 |
 
-window.open(githubUrl, "_blank");
-o && o("Bug 报告已生成，正在前往 GitHub Issue 提交页面！");
-setBugReportCard(null);
-```
+---
+
+## 3. 架构分层实现
+
+### 3.1 前端交互层 (`web/assets/index.js`)
+- 在卡牌详情弹窗中渲染“🐞 报告Bug”按钮与反馈模态框；
+- 点击提交时校验输入内容，组装基础卡牌上下文，调用原生 `androidBridge.submitBugReport(json)`。
+
+### 3.2 原生通信桥接层 (`MainActivity.java -> AndroidBridge`)
+- 自动向 `https://mail.zrz.me/hsobr/index.php` 发起预检 GET 请求提取 CSRF Token 与会话 Cookie；
+- 聚合手机系统型号信息，拼接标准参数并执行 POST 发送；
+- 解析中转站 HTML 响应中的 `.alert.success` 与 `.alert.error` 并回调返回前端。

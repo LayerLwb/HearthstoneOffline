@@ -258,6 +258,176 @@ public class MainActivity extends Activity {
             boolean loaded = hasHsoZip();
             return "{\"loaded\":" + loaded + ",\"path\":\"" + (hsoZipPath != null ? hsoZipPath.replace("\\", "\\\\") : "") + "\"}";
         }
+
+        /**
+         * 自动完善卡牌信息并免登录提交至中转站 (https://mail.zrz.me/hsobr/index.php)
+         */
+        @JavascriptInterface
+        public String submitBugReport(String jsonStr) {
+            HttpURLConnection getConn = null;
+            HttpURLConnection postConn = null;
+            try {
+                org.json.JSONObject payload = new org.json.JSONObject(jsonStr);
+                String cardId = payload.optString("cardId", "");
+                String cardName = payload.optString("cardName", "未知卡牌");
+                String cardClass = payload.optString("cardClass", "中立");
+                String cost = payload.optString("cost", "0");
+                String rarity = payload.optString("rarity", "普通");
+                String cardSet = payload.optString("set", "未知");
+                String cardText = payload.optString("cardText", "无额外效果");
+                String userDesc = payload.optString("description", "").trim();
+                String version = payload.optString("version", "v1.5.8");
+
+                String targetUrl = "https://mail.zrz.me/hsobr/index.php";
+
+                // 1. 发起 GET 请求以获取 Session Cookie 与 CSRF Token
+                getConn = openSecureConnection(targetUrl);
+                int getCode = getConn.getResponseCode();
+                if (getCode != 200) {
+                    return "{\"success\":false,\"message\":\"中转站连接异常 (HTTP " + getCode + ")\"}";
+                }
+
+                // 读取 Cookie
+                String sessionCookie = "";
+                Map<String, List<String>> headerFields = getConn.getHeaderFields();
+                if (headerFields != null && headerFields.containsKey("Set-Cookie")) {
+                    List<String> cookies = headerFields.get("Set-Cookie");
+                    if (cookies != null) {
+                        for (String cookie : cookies) {
+                            int semi = cookie.indexOf(';');
+                            String c = (semi != -1 ? cookie.substring(0, semi) : cookie).trim();
+                            if (!sessionCookie.isEmpty()) {
+                                sessionCookie += "; ";
+                            }
+                            sessionCookie += c;
+                        }
+                    }
+                }
+
+                // 读取 HTML 内容提取 csrf_token
+                BufferedReader reader = new BufferedReader(new InputStreamReader(getConn.getInputStream(), "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line).append("\n");
+                }
+                reader.close();
+                String getHtml = sb.toString();
+
+                java.util.regex.Pattern p = java.util.regex.Pattern.compile("name=[\"']csrf_token[\"']\\s+value=[\"']([^\"']+)[\"']");
+                java.util.regex.Matcher m = p.matcher(getHtml);
+                String csrfToken = "";
+                if (m.find()) {
+                    csrfToken = m.group(1);
+                }
+
+                if (csrfToken == null || csrfToken.isEmpty()) {
+                    return "{\"success\":false,\"message\":\"未能从中转站获取安全校验令牌，请稍后重试\"}";
+                }
+
+                // 2. 自动丰富与完善各项信息
+                String title = "[卡牌Bug] " + cardName + " (" + cardId + ") 异常反馈";
+                String environment = "Android " + Build.VERSION.RELEASE + " (" + Build.MANUFACTURER + " " + Build.MODEL + ")";
+                String steps = "1. 在对局或我的收藏中操作【" + cardName + " (" + cardId + ")】\n2. 触发该卡牌机制或异常现象";
+                String expected = "卡牌效果应符合原版规则描述：\n" + cardText;
+                String actual = userDesc;
+                String extra = "### 缺陷卡牌详情\n"
+                        + "- **卡牌名称**: " + cardName + "\n"
+                        + "- **卡牌编号**: " + cardId + "\n"
+                        + "- **职业**: " + cardClass + "\n"
+                        + "- **费用**: " + cost + "\n"
+                        + "- **品质**: " + rarity + "\n"
+                        + "- **系列**: " + cardSet + "\n"
+                        + "- **卡牌描述**: " + cardText + "\n\n"
+                        + "### 客户端环境\n"
+                        + "- **APP版本**: " + version + "\n"
+                        + "- **系统型号**: " + environment + "\n"
+                        + "*来自炉石传说单机版客户端内置 Bug 报告中转站*";
+
+                // 组装 POST Form 参数
+                StringBuilder postData = new StringBuilder();
+                Map<String, String> params = new java.util.LinkedHashMap<>();
+                params.put("csrf_token", csrfToken);
+                params.put("website", "");
+                params.put("type", "bug");
+                params.put("version", version);
+                params.put("title", title);
+                params.put("environment", environment);
+                params.put("steps", steps);
+                params.put("expected", expected);
+                params.put("actual", actual);
+                params.put("extra", extra);
+
+                for (Map.Entry<String, String> entry : params.entrySet()) {
+                    if (postData.length() > 0) postData.append('&');
+                    postData.append(java.net.URLEncoder.encode(entry.getKey(), "UTF-8"));
+                    postData.append('=');
+                    postData.append(java.net.URLEncoder.encode(entry.getValue() != null ? entry.getValue() : "", "UTF-8"));
+                }
+                byte[] postBytes = postData.toString().getBytes("UTF-8");
+
+                // 3. 发送 POST 请求提交表单
+                initSsl();
+                URL postUrl = new URL(targetUrl);
+                postConn = (HttpURLConnection) postUrl.openConnection();
+                if (postConn instanceof HttpsURLConnection) {
+                    HttpsURLConnection httpsPost = (HttpsURLConnection) postConn;
+                    if (sslSocketFactory != null) httpsPost.setSSLSocketFactory(sslSocketFactory);
+                    if (hostnameVerifier != null) httpsPost.setHostnameVerifier(hostnameVerifier);
+                }
+                postConn.setRequestMethod("POST");
+                postConn.setConnectTimeout(15000);
+                postConn.setReadTimeout(20000);
+                postConn.setDoOutput(true);
+                postConn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android " + Build.VERSION.RELEASE + "; " + Build.MODEL + ") AppleWebKit/537.36");
+                postConn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                postConn.setRequestProperty("Content-Length", String.valueOf(postBytes.length));
+                if (!sessionCookie.isEmpty()) {
+                    postConn.setRequestProperty("Cookie", sessionCookie);
+                }
+
+                java.io.OutputStream os = postConn.getOutputStream();
+                os.write(postBytes);
+                os.flush();
+                os.close();
+
+                int postCode = postConn.getResponseCode();
+                InputStream resIs = (postCode >= 200 && postCode < 400) ? postConn.getInputStream() : postConn.getErrorStream();
+                BufferedReader pReader = new BufferedReader(new InputStreamReader(resIs, "UTF-8"));
+                StringBuilder pSb = new StringBuilder();
+                String pLine;
+                while ((pLine = pReader.readLine()) != null) {
+                    pSb.append(pLine).append("\n");
+                }
+                pReader.close();
+                String resHtml = pSb.toString();
+
+                // 解析反馈结果
+                if (resHtml.contains("alert success") || resHtml.contains("提交成功")) {
+                    return "{\"success\":true,\"message\":\"Bug 反馈已成功提交至中转站！感谢您的反馈与支持。\"}";
+                } else if (resHtml.contains("alert error")) {
+                    java.util.regex.Pattern pErr = java.util.regex.Pattern.compile("<div class=\"alert error\"[^>]*>(.*?)</div>", java.util.regex.Pattern.DOTALL);
+                    java.util.regex.Matcher mErr = pErr.matcher(resHtml);
+                    String errMsg = "提交失败";
+                    if (mErr.find()) {
+                        String rawErr = mErr.group(1).replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+                        if (!rawErr.isEmpty()) {
+                            errMsg = rawErr;
+                        }
+                    }
+                    return "{\"success\":false,\"message\":\"" + errMsg.replace("\"", "\\\"").replace("\n", " ") + "\"}";
+                } else {
+                    return "{\"success\":true,\"message\":\"提交完成！\"}";
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "submitBugReport 发生异常", e);
+                return "{\"success\":false,\"message\":\"提交异常: " + (e.getMessage() != null ? e.getMessage().replace("\"", "\\\"") : "网络连接失败") + "\"}";
+            } finally {
+                if (getConn != null) try { getConn.disconnect(); } catch (Exception ignored) {}
+                if (postConn != null) try { postConn.disconnect(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     @Override
