@@ -84,6 +84,28 @@ python -m http.server 8080
 
 ---
 
+## ⚡ 网页端一键编译与发布 Release (GitHub Actions)
+
+项目已完整配置 GitHub Actions 自动化 CI/CD 流水线，并集成了**与旧版完全一致的官方签名证书**，构建出的 APK 可以**直接覆盖安装**！
+
+### 网页端一键操作步骤：
+1. 打开项目仓库主页，点击顶部导航栏中的 **[Actions](https://github.com/LayerLwb/HearthstoneOffline/actions)** 标签页。
+2. 在左侧工作流列表中选择 **「Build and Release APK (炉石传说单机版构建与发布)」**。
+3. 点击右侧的 **「Run workflow」** 蓝色下拉按钮。
+4. 在弹出的配置窗口中填写：
+   - **发布版本号**（例如：`v1.5.8`）
+   - **Release 标题**（例如：`v1.5.8 - 炉石传说单机版更新发布`）
+   - **更新说明**（输入本次更新日志）
+   - **是否发布至 GitHub Releases**（默认已勾选 `true`）
+5. 点击绿色的 **「Run workflow」** 按钮确认执行。
+6. 等待约 1~2 分钟，GitHub Actions 将全自动：
+   - 提取最新 Web 游戏代码与核心规则；
+   - 注入 22,000+ 卡牌离线高清原画；
+   - 使用统一的官方签名完成签名与验签；
+   - 自动在 [Releases 页面](https://github.com/LayerLwb/HearthstoneOffline/releases) 发布新版本并上传 APK 安装包！
+
+---
+
 ## 🐞 卡牌 Bug 报告流程
 
 1. 进入游戏主界面，点击 **「我的收藏 (Collection)」**。

@@ -1,0 +1,149 @@
+name: Build and Release APK (炉石传说单机版构建与发布)
+
+on:
+  # 支持在 GitHub 网页版点击按钮手动一键触发编译与发布
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (例如: v1.5.8)'
+        required: true
+        default: 'v1.5.8'
+      title:
+        description: 'Release 标题'
+        required: true
+        default: 'v1.5.8 - 炉石传说单机版更新发布'
+      description:
+        description: '更新说明 (Release Notes)'
+        required: false
+        default: '本次更新包含最新的卡牌逻辑优化、UI 体验改进与已知 Bug 修复。'
+      publish_release:
+        description: '是否发布至 GitHub Releases (勾选发布，不勾选仅保存为 Artifact 产物)'
+        type: boolean
+        required: true
+        default: true
+      is_prerelease:
+        description: '是否标记为预发布 (Pre-release)'
+        type: boolean
+        required: false
+        default: false
+
+  # 当推送带 v 开头的 tag 时自动触发发布 (例如: git tag v1.5.8 && git push origin v1.5.8)
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+
+# 授予创建 Release 和上传 Release 资产的权限
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Package Signed APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Determine Version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            TITLE="${{ inputs.title }}"
+            NOTES="${{ inputs.description }}"
+            DO_RELEASE="${{ inputs.publish_release }}"
+          elif [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            TITLE="${VERSION} - 炉石传说单机版更新发布"
+            NOTES="自动发布的 Release 版本: ${VERSION}"
+            DO_RELEASE="true"
+          else
+            VERSION="v1.5.7-dev-${GITHUB_SHA::7}"
+            TITLE="开发预览版 ${VERSION}"
+            NOTES="基于 commit ${GITHUB_SHA} 的开发构建"
+            DO_RELEASE="false"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "title=${TITLE}" >> $GITHUB_OUTPUT
+          echo "notes=${NOTES}" >> $GITHUB_OUTPUT
+          echo "do_release=${DO_RELEASE}" >> $GITHUB_OUTPUT
+
+      - name: Prepare Keystore
+        run: |
+          mkdir -p android/keystore
+          # 若配置了 GitHub Secret HSO_KEYSTORE_BASE64 则优先使用，否则使用仓库内置签名密钥
+          if [ -n "${{ secrets.HSO_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.HSO_KEYSTORE_BASE64 }}" | base64 -d > android/keystore/hso.keystore
+            echo "[+] Keystore restored from GitHub Secrets."
+          else
+            echo "[+] Using repository keystore."
+          fi
+          # 验证密钥有效性
+          keytool -list -keystore android/keystore/hso.keystore -storepass android
+
+      - name: Build & Sign APK
+        run: |
+          python scripts/build_ci_apk.py \
+            --version "${{ steps.get_version.outputs.version }}" \
+            --output "dist/HearthstoneOffline-${{ steps.get_version.outputs.version }}.apk" \
+            --keystore "android/keystore/hso.keystore" \
+            --storepass "android" \
+            --keypass "android" \
+            --alias "androiddebugkey"
+
+      - name: Verify APK Signature (确保覆盖安装)
+        run: |
+          echo "[*] Checking signature certificate..."
+          jarsigner -verify -verbose -certs "dist/HearthstoneOffline-${{ steps.get_version.outputs.version }}.apk" | head -n 30
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HearthstoneOffline-${{ steps.get_version.outputs.version }}-APK
+          path: dist/*.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: steps.get_version.outputs.do_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TITLE="${{ steps.get_version.outputs.title }}"
+          NOTES="${{ steps.get_version.outputs.notes }}"
+          APK_FILE="dist/HearthstoneOffline-${VERSION}.apk"
+          
+          PRERELEASE_FLAG=""
+          if [ "${{ inputs.is_prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          
+          echo "[*] Publishing Release ${VERSION} with gh CLI..."
+          
+          # 如果该 Release tag 已存在则上传资产覆盖，否则新建 Release
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "[*] Release ${VERSION} already exists. Uploading asset..."
+            gh release upload "${VERSION}" "${APK_FILE}" --clobber
+          else
+            gh release create "${VERSION}" "${APK_FILE}" \
+              --title "${TITLE}" \
+              --notes "${NOTES}" \
+              ${PRERELEASE_FLAG}
+          fi
+          echo "[+] Release published successfully!"
