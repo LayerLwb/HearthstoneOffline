@@ -253,6 +253,7 @@ def sign_and_align_apk(unsigned_apk, output_apk, keystore, storepass, keypass, k
             "--ks-key-alias", keyalias,
             "--ks-pass", f"pass:{storepass}",
             "--key-pass", f"pass:{keypass}",
+            "--min-sdk-version", "21",
             "--v1-signing-enabled", "true",
             "--v2-signing-enabled", "true",
             "--v3-signing-enabled", "true",

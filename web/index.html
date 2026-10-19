@@ -1,6 +1,38 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
+    <script>
+      function showErrorOverlay(title, msg) {
+        try {
+          var box = document.getElementById('fatal-error-overlay');
+          if (!box) {
+            box = document.createElement('div');
+            box.id = 'fatal-error-overlay';
+            box.style.cssText = 'position:fixed;top:12px;left:12px;right:12px;z-index:999999;background:rgba(185,28,28,0.95);color:#fff;padding:14px;border-radius:8px;font-family:sans-serif;font-size:12px;max-height:80vh;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,0.6);border:1px solid #f87171;';
+            var closeBtn = document.createElement('button');
+            closeBtn.innerText = '✕ 关闭';
+            closeBtn.style.cssText = 'float:right;background:#fff;color:#991b1b;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-weight:bold;margin-left:8px;';
+            closeBtn.onclick = function() { box.remove(); };
+            box.appendChild(closeBtn);
+            var content = document.createElement('div');
+            content.id = 'fatal-error-content';
+            box.appendChild(content);
+            (document.body || document.documentElement).appendChild(box);
+          }
+          var c = document.getElementById('fatal-error-content');
+          if (c) {
+            c.innerHTML += '<div style="margin-bottom:8px;"><strong>[' + title + ']</strong><br><pre style="white-space:pre-wrap;word-break:break-all;margin:4px 0 0 0;font-size:11px;">' + String(msg).replace(/</g, '&lt;') + '</pre></div>';
+          }
+        } catch(e) {}
+      }
+
+      window.addEventListener('error', function(e) {
+        showErrorOverlay('JavaScript 运行时异常', (e.message || '未知错误') + '\n位置: ' + (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '') + (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        showErrorOverlay('未捕获 Promise 异常', e.reason ? (e.reason.stack || e.reason) : e);
+      });
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#21140e" />

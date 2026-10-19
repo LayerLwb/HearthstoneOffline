@@ -17,8 +17,10 @@ import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -324,6 +326,14 @@ public class MainActivity extends Activity {
             }
         }
 
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+                Log.d("HSO_WebView", consoleMessage.message() + " [" + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber() + "]");
+                return true;
+            }
+        });
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
@@ -332,10 +342,24 @@ public class MainActivity extends Activity {
 
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
+                if (request == null || request.getUrl() == null) {
+                    return null;
+                }
+                return handleResourceIntercept(request.getUrl());
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+                if (url == null || url.isEmpty()) {
+                    return null;
+                }
+                return handleResourceIntercept(Uri.parse(url));
+            }
+
+            private WebResourceResponse handleResourceIntercept(Uri uri) {
                 String host = uri.getHost();
                 if (host != null && !host.equalsIgnoreCase("localhost") && !host.equals("127.0.0.1")) {
-                    return super.shouldInterceptRequest(view, request);
+                    return null;
                 }
 
                 String path = uri.getPath();
@@ -420,10 +444,17 @@ public class MainActivity extends Activity {
                     if (mimeType == null) {
                         mimeType = "application/octet-stream";
                     }
+
+                    // 关键修复：图片、音频、字体与二进制文件不能指定 UTF-8 编码，必须设为 null
+                    String encoding = "UTF-8";
+                    if (mimeType.startsWith("image/") || mimeType.startsWith("font/") || mimeType.startsWith("audio/") || mimeType.equals("application/wasm") || mimeType.equals("application/octet-stream")) {
+                        encoding = null;
+                    }
+
                     Map<String, String> responseHeaders = new HashMap<>();
                     responseHeaders.put("Access-Control-Allow-Origin", "*");
                     responseHeaders.put("Cache-Control", "public, max-age=604800");
-                    return new WebResourceResponse(mimeType, "UTF-8", 200, "OK", responseHeaders, is);
+                    return new WebResourceResponse(mimeType, encoding, 200, "OK", responseHeaders, is);
                 }
 
                 return null;
