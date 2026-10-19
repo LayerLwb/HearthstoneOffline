@@ -1,0 +1,1491 @@
+/* ==========================================================================
+   全面屏与边缘视口适配 (Full Screen & Safe Area Edge-to-Edge)
+   ========================================================================== */
+html, body {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #21140e !important;
+    overflow-x: hidden !important;
+}
+
+#root, .app-shell {
+    width: 100% !important;
+    min-height: 100dvh !important;
+}
+
+.app-header {
+    padding-left: max(25px, env(safe-area-inset-left, 0px)) !important;
+    padding-right: max(25px, env(safe-area-inset-right, 0px)) !important;
+}
+
+body.in-battle-view .battle-workspace,
+body.battle-fullscreen-active .battle-workspace {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-height: 100dvh !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* ==========================================================================
+   移动端手牌折叠与布局优化 (Android 手机专属优化)
+   ========================================================================== */
+
+/* 1. 默认状态：手牌缩小并折叠在左下角，不遮挡正中间的英雄以及右下角的水晶条 */
+.battle-stage.mobile-hand-collapsed .hand-area .hand-card {
+    left: calc(20% + var(--offset) * 0.35) !important;
+    bottom: -8% !important;
+    transform: translate(-50%) translateY(calc(var(--curve) * 0.40)) rotate(calc(var(--rotation) * 0.50)) scale(0.56) !important;
+    transform-origin: center bottom !important;
+    opacity: 0.95;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                left 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                bottom 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+                opacity 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+/* 缩小时手牌 hover/focus 不产生突兀的跳变，保持缩放 */
+.battle-stage.mobile-hand-collapsed .hand-area .hand-card:hover,
+.battle-stage.mobile-hand-collapsed .hand-area .hand-card:focus {
+    bottom: -7% !important;
+    transform: translate(-50%) translateY(calc(var(--curve) * 0.40)) rotate(calc(var(--rotation) * 0.50)) scale(0.60) !important;
+}
+
+/* 2. 展开状态：平滑过渡回原始大小与居中位置（居中放大展示） */
+.battle-stage.mobile-hand-expanded .hand-area .hand-card {
+    transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                left 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                bottom 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* 缩小状态下左下角小提示标签 */
+.mobile-hand-minimized-badge {
+    position: absolute;
+    left: 20%;
+    bottom: 13%;
+    transform: translateX(-50%);
+    background: rgba(28, 17, 12, 0.82);
+    border: 1px solid rgba(236, 205, 124, 0.4);
+    color: #eccd7c;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 20;
+    white-space: nowrap;
+    display: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.battle-stage.mobile-hand-collapsed .mobile-hand-minimized-badge {
+    display: block;
+}
+
+/* ==========================================================================
+   全屏对战模式 (Fullscreen Battle Mode)
+   ========================================================================== */
+
+/* 全屏状态下隐藏顶部和底部其他元素 */
+body.battle-fullscreen-active .app-header {
+    display: none !important;
+}
+
+body.battle-fullscreen-active .battle-topline {
+    display: none !important;
+}
+
+body.battle-fullscreen-active .battle-bottomline {
+    display: none !important;
+}
+
+/* 全屏状态下，将 battle-page 和 battle-stage 撑满全屏 */
+body.battle-fullscreen-active .battle-page {
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100dvh !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    justify-content: center !important;
+    align-items: center !important;
+    overflow: hidden !important;
+}
+
+body.battle-fullscreen-active .battle-stage {
+    /* 16:9 比例最大化填充全屏，无视原来扣减的 131px 空间 */
+    width: min(100vw, calc(100dvh * 16 / 9)) !important;
+    height: min(100dvh, calc(100vw * 9 / 16)) !important;
+    aspect-ratio: 16 / 9 !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: auto !important;
+    transition: width 0.25s ease, height 0.25s ease !important;
+}
+
+/* 全屏模式下，左上角保留精致的悬浮对局菜单按钮 */
+.mobile-fullscreen-menu-btn {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top, 10px));
+    left: max(12px, env(safe-area-inset-left, 12px));
+    z-index: 110;
+    background: rgba(28, 17, 12, 0.88);
+    border: 1px solid rgba(236, 205, 124, 0.6);
+    color: #f3e191;
+    font-size: 12px;
+    padding: 6px 13px;
+    border-radius: 16px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+body.battle-fullscreen-active .mobile-fullscreen-menu-btn {
+    display: flex;
+}
+
+.mobile-fullscreen-menu-btn:active {
+    transform: scale(0.93);
+    background: rgba(45, 28, 20, 0.95);
+}
+
+/* 右下角全屏 / 取消全屏按钮 */
+.mobile-fullscreen-toggle-btn {
+    position: fixed;
+    right: max(14px, env(safe-area-inset-right, 14px));
+    bottom: max(8px, env(safe-area-inset-bottom, 8px));
+    z-index: 110;
+    background: rgba(28, 17, 12, 0.88);
+    border: 1px solid rgba(236, 205, 124, 0.65);
+    color: #f3e191;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 16px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+    display: none; /* 仅在对局中存在 battle-stage 时动态显示 */
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* 处于对战页面时显示该按钮 */
+body.in-battle-view .mobile-fullscreen-toggle-btn {
+    display: flex;
+}
+
+.mobile-fullscreen-toggle-btn:active {
+    transform: scale(0.93);
+    background: rgba(48, 30, 22, 0.95);
+    border-color: #ffd875;
+}
+
+body.battle-fullscreen-active .mobile-fullscreen-toggle-btn {
+    background: rgba(45, 28, 20, 0.95);
+    border-color: #ffd875;
+    color: #ffe699;
+    box-shadow: 0 0 10px rgba(255, 216, 117, 0.35), 0 4px 14px rgba(0, 0, 0, 0.7);
+}
+
+/* ==========================================================================
+   卡牌收藏界面移动端与筛选优化
+   ========================================================================== */
+.filter-checkboxes {
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+
+.filter-checkboxes label {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    white-space: nowrap;
+}
+
+.filter-checkboxes input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: #d7ac57;
+}
+
+/* ==========================================================================
+   对战匹配面板自适应网格样式 (支持对手卡组选项的4项均匀排布与换行)
+   ========================================================================== */
+.match-settings {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+    gap: 10px 14px !important;
+}
+
+/* ==========================================================================
+   炉石传说手机版原生触控交互样式 (Hearthstone Mobile Touch Interactions)
+   ========================================================================== */
+
+/* 1. 禁用战场与卡牌默认触摸手势（防浏览器缩放、滚动与长按菜单） */
+.battle-stage,
+.hand-area,
+.hand-card,
+.board-surface,
+.board-hitbox,
+.board-drop-zone {
+    touch-action: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+}
+
+/* 2. 随从平滑滑动挤开缝隙过渡动画 */
+.board-hitbox.minion-hitbox {
+    transition: left 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* 3. 非指向性法术拖出手牌施法区域指示器 (不显示白色边框卡牌，使用原生法术光环) */
+.spell-casting-zone {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: clamp(200px, 24vw, 340px);
+    height: clamp(80px, 12vw, 150px);
+    border-radius: 60px;
+    border: 2.5px solid rgba(85, 175, 255, 0.92);
+    background: radial-gradient(ellipse at center, rgba(30, 95, 220, 0.48) 0%, rgba(10, 32, 90, 0.25) 70%, transparent 100%);
+    box-shadow: 0 0 30px rgba(45, 135, 255, 0.8), inset 0 0 20px rgba(20, 75, 190, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: #e0f0ff;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    text-shadow: 0 1px 4px #000, 0 0 8px rgba(80, 160, 255, 0.95);
+    pointer-events: none;
+    z-index: 16;
+    animation: spell-zone-pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes spell-zone-pulse {
+    0% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.82; }
+    100% { transform: translate(-50%, -50%) scale(1.04); opacity: 1; }
+}
+
+/* 消除所有卡牌触摸点击白边与高亮轮廓 */
+.hand-card,
+.hand-card *,
+.game-card,
+.board-surface {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+}
+
+.hand-card:focus-visible .game-card {
+    outline: none !important;
+}
+
+/* 4. 生物上场动态位置预览插槽 (完全复刻战场随从图标效果：框体、嘲讽框、数值 + 暗蓝色遮罩) */
+.minion-placement-ghost {
+    position: absolute;
+    width: clamp(62px, 7.2vw, 88px);
+    height: clamp(80px, 9.4vw, 115px);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 18;
+    display: none;
+    filter: drop-shadow(0 0 12px rgba(45, 140, 255, 0.85));
+    animation: minion-ghost-breathe 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes minion-ghost-breathe {
+    0% { transform: translate(-50%, -50%) scale(0.97); filter: drop-shadow(0 0 10px rgba(45, 140, 255, 0.7)); }
+    100% { transform: translate(-50%, -50%) scale(1.03); filter: drop-shadow(0 0 18px rgba(65, 165, 255, 0.95)); }
+}
+
+/* 随从嘲讽石盾框 (Taunt Shield Frame) */
+.minion-placement-ghost .ghost-taunt-svg {
+    position: absolute;
+    inset: -12%;
+    width: 124%;
+    height: 124%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 随从标准椭圆身躯与边框 */
+.minion-placement-ghost .ghost-oval-body {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3.5px solid #8c97a8;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.85);
+    overflow: hidden;
+    background: #1a1a24;
+    z-index: 2;
+}
+
+.minion-placement-ghost.has-taunt .ghost-oval-body {
+    inset: 4%;
+    border: 2.5px solid #6b7788;
+}
+
+.minion-placement-ghost .minion-ghost-art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 50%;
+    display: block;
+}
+
+/* 暗蓝色遮罩/蒙版层 (用户要求：完全复刻，只是有颜色遮罩) */
+.minion-placement-ghost .minion-ghost-mask {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(14, 38, 90, 0.68);
+    box-shadow: inset 0 0 16px rgba(40, 140, 255, 0.85);
+    pointer-events: none;
+}
+
+/* 随从左下攻击与右下生命值角标（完全复刻战场的圆形黄/红微雕图标） */
+.minion-placement-ghost .ghost-stat {
+    position: absolute;
+    bottom: -4px;
+    width: clamp(22px, 2.6vw, 30px);
+    height: clamp(22px, 2.6vw, 30px);
+    line-height: clamp(20px, 2.4vw, 28px);
+    text-align: center;
+    font-size: clamp(14px, 1.7vw, 19px);
+    font-weight: 900;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), inset 0 0 0 1.5px rgba(255, 255, 255, 0.45);
+    text-shadow: 0 1px 3px #000, 0 0 5px #000;
+    z-index: 5;
+}
+
+.minion-placement-ghost .ghost-atk {
+    left: -4px;
+    background: radial-gradient(circle, #f5a623 35%, #a6630f 100%);
+    color: #ffffff;
+    border: 2px solid #21110a;
+}
+
+.minion-placement-ghost .ghost-hp {
+    right: -4px;
+    background: radial-gradient(circle, #e74c3c 35%, #962d22 100%);
+    color: #ffffff;
+    border: 2px solid #21110a;
+}
+
+/* 5. 目标悬停反馈高亮强化 */
+.board-hitbox.targetable.target-hovered {
+    transform: translate(-50%, -50%) scale(1.12) !important;
+    box-shadow: 0 0 25px rgba(255, 60, 60, 0.95), 0 0 35px rgba(255, 215, 0, 0.85) !important;
+    border-color: #ffe066 !important;
+    z-index: 50 !important;
+}
+
+/* 6. 被拖拽的卡牌在原手牌处半透明隐藏 */
+.hand-card.mobile-drag-source {
+    opacity: 0.28 !important;
+    filter: grayscale(0.4);
+}
+
+/* ==========================================================================
+   起手选牌界面布局修复 (Mulligan Card Selection Center Alignment)
+   ========================================================================== */
+.mulligan-overlay .mulligan-cards > button {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: auto !important;
+    box-sizing: border-box !important;
+}
+
+.mulligan-overlay .mulligan-cards > button .replace-mark {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+}
+
+.mulligan-overlay .mulligan-cards > button .replace-mark svg {
+    display: block !important;
+    margin: 0 auto !important;
+    width: 44% !important;
+    height: auto !important;
+}
+
+.mulligan-overlay .mulligan-cards > button .replace-mark b {
+    display: inline-block !important;
+    margin: 12px auto 0 !important;
+    text-align: center !important;
+    border-radius: 4px !important;
+}
+
+/* =========================================================================
+   仿真充值与闪光加号样式 (Simulated Recharge & Shiny Plus Buttons)
+   ========================================================================= */
+.res-plus-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 6px;
+  padding: 0;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  user-select: none;
+  vertical-align: middle;
+}
+.res-plus-btn:hover, .res-plus-btn:active {
+  transform: scale(1.22);
+}
+
+.coin-plus-btn {
+  background: linear-gradient(135deg, #ffe066 0%, #f39c12 100%);
+  color: #5c3800;
+  border-color: #fff2a8;
+  box-shadow: 0 0 6px rgba(243, 156, 18, 0.8), 0 0 12px rgba(255, 224, 102, 0.5);
+  animation: hs-gold-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes hs-gold-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(243, 156, 18, 0.7), 0 0 8px rgba(255, 224, 102, 0.4);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(243, 156, 18, 1), 0 0 18px rgba(255, 224, 102, 0.85);
+    filter: brightness(1.3);
+  }
+}
+
+.dust-plus-btn {
+  background: linear-gradient(135deg, #d2a8ff 0%, #8e44ad 100%);
+  color: #ffffff;
+  border-color: #f1ddff;
+  box-shadow: 0 0 6px rgba(155, 89, 182, 0.8), 0 0 12px rgba(210, 168, 255, 0.5);
+  animation: hs-dust-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes hs-dust-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(155, 89, 182, 0.7), 0 0 8px rgba(210, 168, 255, 0.4);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(155, 89, 182, 1), 0 0 18px rgba(210, 168, 255, 0.85);
+    filter: brightness(1.3);
+  }
+}
+
+/* 充值弹窗全局居中对齐 */
+.fantasy-modal:has(.recharge-dialog-body) .modal-heading {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  position: relative !important;
+  width: 100% !important;
+}
+.fantasy-modal:has(.recharge-dialog-body) .modal-heading h2 {
+  text-align: center !important;
+  margin: 0 auto !important;
+  display: block !important;
+  width: 100% !important;
+}
+.recharge-dialog-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 4px;
+  box-sizing: border-box;
+}
+.recharge-dialog-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+  margin-top: -6px;
+  margin-bottom: 2px;
+  width: 100%;
+}
+.recharge-tabs {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.recharge-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.recharge-tab-btn.active.tab-coins {
+  background: rgba(243, 156, 18, 0.25);
+  border-color: #f39c12;
+  color: #ffd04b;
+  box-shadow: 0 0 10px rgba(243, 156, 18, 0.2);
+}
+.recharge-tab-btn.active.tab-dust {
+  background: rgba(155, 89, 182, 0.25);
+  border-color: #9b59b6;
+  color: #dfb2ff;
+  box-shadow: 0 0 10px rgba(155, 89, 182, 0.2);
+}
+
+.recharge-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+@media (max-width: 840px) {
+  .recharge-tier-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 460px) {
+  .recharge-tier-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recharge-tier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 16px 10px 14px;
+  background: rgba(26, 18, 14, 0.92);
+  border: 1px solid rgba(226, 183, 104, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s, border-color 0.15s;
+}
+.recharge-tier-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(226, 183, 104, 0.75);
+}
+.dust-card {
+  border-color: rgba(155, 89, 182, 0.35);
+}
+.dust-card:hover {
+  border-color: rgba(155, 89, 182, 0.75);
+}
+
+.recharge-badge {
+  position: absolute;
+  top: -10px;
+  background: linear-gradient(90deg, #e74c3c, #f39c12);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.dust-card .recharge-badge {
+  background: linear-gradient(90deg, #9b59b6, #e74c3c);
+}
+
+.recharge-icon {
+  font-size: 32px;
+  margin: 4px 0 2px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  text-align: center;
+}
+.recharge-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffd04b;
+  margin-bottom: 2px;
+  text-align: center;
+}
+.dust-card .recharge-title {
+  color: #dfb2ff;
+}
+.recharge-amount {
+  font-size: 19px;
+  font-weight: 900;
+  color: #fff;
+  margin: 4px 0 6px;
+  text-shadow: 0 0 8px rgba(243, 156, 18, 0.6);
+  text-align: center;
+}
+.dust-card .recharge-amount {
+  text-shadow: 0 0 8px rgba(155, 89, 182, 0.6);
+}
+.recharge-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.4;
+  margin-bottom: 6px;
+  min-height: 34px;
+  text-align: center;
+}
+.recharge-ref {
+  font-size: 11px;
+  color: #a8947c;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.recharge-btn {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  font-weight: bold;
+  color: #3d2300;
+  background: linear-gradient(180deg, #fce072 0%, #e5a92a 100%);
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: filter 0.15s, transform 0.1s;
+  text-align: center;
+}
+.recharge-btn:hover {
+  filter: brightness(1.15);
+}
+.recharge-btn:active {
+  transform: scale(0.97);
+}
+.dust-card .recharge-btn {
+  color: #ffffff;
+  background: linear-gradient(180deg, #b072fc 0%, #7d2ae5 100%);
+  border: 1px solid #d9b8ff;
+}
+
+/* =========================================================================
+   卡包开启动画与卡牌翻面稀有度光效 (Pack Burst & Rarity Reveal Glow)
+   ========================================================================= */
+
+/* 1. 卡包开启动画：剧烈震动、金光膨胀、耀眼爆发 */
+.sealed-pack.is-opening {
+  animation: pack-shake-burst 0.72s cubic-bezier(0.25, 0.1, 0.25, 1) forwards !important;
+  pointer-events: none;
+}
+@keyframes pack-shake-burst {
+  0% {
+    transform: rotate(-7deg) scale(1);
+    filter: drop-shadow(10px 18px 12px rgba(0, 0, 0, 0.5));
+  }
+  15% {
+    transform: rotate(6deg) scale(1.05) translateY(-8px);
+    filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.6)) brightness(1.2);
+  }
+  30% {
+    transform: rotate(-6deg) scale(1.1) translateY(-14px);
+    filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.8)) brightness(1.4);
+  }
+  45% {
+    transform: rotate(7deg) scale(1.15) translateY(-18px);
+    filter: drop-shadow(0 0 55px rgba(255, 180, 0, 0.95)) brightness(1.6);
+  }
+  60% {
+    transform: rotate(-5deg) scale(1.2) translateY(-22px);
+    filter: drop-shadow(0 0 75px rgba(255, 240, 120, 1)) brightness(1.9);
+  }
+  80% {
+    transform: rotate(2deg) scale(1.28) translateY(-26px);
+    filter: drop-shadow(0 0 95px rgba(255, 255, 255, 1)) brightness(2.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: rotate(0deg) scale(1.4) translateY(-30px);
+    filter: drop-shadow(0 0 140px #ffffff) brightness(3.5);
+    opacity: 0;
+  }
+}
+
+.pack-open-burst-fx {
+  position: absolute;
+  inset: -50px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 15%, rgba(255, 215, 0, 0.75) 45%, rgba(255, 140, 0, 0.45) 70%, transparent 88%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: burst-fx-expand 0.7s ease-out forwards;
+}
+@keyframes burst-fx-expand {
+  0% { transform: scale(0.2); opacity: 0; }
+  50% { opacity: 1; filter: brightness(1.5); }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+/* 2. 预先悬停边缘探光 (Card back hover peek glow) */
+.card-back-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 10px;
+  transition: box-shadow 0.25s ease;
+}
+.pack-card-slot:hover:not(.is-revealed) .card-back-glow.rarity-rare {
+  box-shadow: inset 0 0 12px rgba(0, 160, 255, 0.7), 0 0 16px rgba(0, 160, 255, 0.7);
+}
+.pack-card-slot:hover:not(.is-revealed) .card-back-glow.rarity-epic {
+  box-shadow: inset 0 0 14px rgba(168, 85, 247, 0.85), 0 0 20px rgba(168, 85, 247, 0.85);
+}
+.pack-card-slot:hover:not(.is-revealed) .card-back-glow.rarity-legendary {
+  box-shadow: inset 0 0 20px rgba(255, 140, 0, 0.9), 0 0 28px rgba(255, 140, 0, 1);
+  animation: hs-legendary-back-pulse 1.2s infinite alternate;
+}
+@keyframes hs-legendary-back-pulse {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(1.4); }
+}
+
+/* =========================================================================
+   3. 炉石传说式卡牌翻面粒子迸发特效 (One-shot Particle Burst by Rarity)
+   无论稀有度光芒绝不一直持续，翻面瞬间粒子特效迸开发散消散，卡面洁净清晰
+   ========================================================================= */
+
+/* ---------------- 蓝色稀有卡牌 (Rare) ---------------- */
+/* 卡面高光瞬时闪烁后消散 */
+.pack-card-slot.rarity-rare.is-revealed .pack-card-front {
+  animation: rare-card-flare 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes rare-card-flare {
+  0% { filter: drop-shadow(0 0 10px rgba(0, 180, 255, 0.6)); }
+  28% { filter: drop-shadow(0 0 22px rgba(0, 210, 255, 1)) drop-shadow(0 0 42px rgba(0, 130, 255, 0.8)); }
+  100% { filter: drop-shadow(0 0 0px transparent); }
+}
+
+/* 冲击波光环向外扩散消散 */
+.card-rarity-aura.rarity-rare {
+  position: absolute;
+  inset: -15px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 200, 255, 0.85);
+  background: radial-gradient(circle, rgba(0, 180, 255, 0.4) 10%, rgba(0, 120, 255, 0.15) 50%, transparent 75%);
+  pointer-events: none;
+  opacity: 0;
+}
+.pack-card-slot.rarity-rare.is-revealed .card-rarity-aura.rarity-rare {
+  animation: rare-shockwave-burst 1.25s cubic-bezier(0.15, 0.8, 0.2, 1) forwards;
+}
+@keyframes rare-shockwave-burst {
+  0% { transform: scale(0.3); opacity: 0; }
+  25% { opacity: 1; transform: scale(0.9); }
+  70% { opacity: 0.6; transform: scale(1.6); filter: blur(2px); }
+  100% { opacity: 0; transform: scale(2.1); filter: blur(6px); }
+}
+
+/* 蓝色魔力星芒粒子四散迸发 */
+.card-burst-sparks.rarity-rare {
+  position: absolute;
+  inset: -30px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle 3px at 50% 10%, #00e5ff 100%, transparent),
+    radial-gradient(circle 3px at 85% 25%, #70e000 0%, #00b4d8 100%, transparent),
+    radial-gradient(circle 4px at 90% 50%, #90e0ef 100%, transparent),
+    radial-gradient(circle 3px at 80% 80%, #0096c7 100%, transparent),
+    radial-gradient(circle 4px at 50% 90%, #00e5ff 100%, transparent),
+    radial-gradient(circle 3px at 20% 80%, #48cae4 100%, transparent),
+    radial-gradient(circle 4px at 10% 50%, #90e0ef 100%, transparent),
+    radial-gradient(circle 3px at 20% 20%, #0077b6 100%, transparent);
+}
+.pack-card-slot.rarity-rare.is-revealed .card-burst-sparks.rarity-rare {
+  animation: rare-sparks-burst 1.25s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+@keyframes rare-sparks-burst {
+  0% { transform: scale(0.3) rotate(0deg); opacity: 0; }
+  30% { opacity: 1; transform: scale(1.1) rotate(15deg); filter: drop-shadow(0 0 6px #00e5ff); }
+  100% { transform: scale(2.4) rotate(45deg); opacity: 0; filter: blur(3px); }
+}
+
+/* 蓝色辐射光束发散消失 */
+.card-burst-rays.rarity-rare {
+  position: absolute;
+  inset: -45px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(0, 210, 255, 0.6) 15deg,
+    transparent 30deg,
+    transparent 60deg,
+    rgba(0, 160, 255, 0.5) 75deg,
+    transparent 90deg,
+    transparent 120deg,
+    rgba(0, 210, 255, 0.6) 135deg,
+    transparent 150deg,
+    transparent 180deg,
+    rgba(0, 160, 255, 0.5) 195deg,
+    transparent 210deg,
+    transparent 240deg,
+    rgba(0, 210, 255, 0.6) 255deg,
+    transparent 270deg,
+    transparent 300deg,
+    rgba(0, 160, 255, 0.5) 315deg,
+    transparent 330deg,
+    transparent 360deg
+  );
+  mask-image: radial-gradient(circle, rgba(0,0,0,1) 40%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 40%, transparent 75%);
+}
+.pack-card-slot.rarity-rare.is-revealed .card-burst-rays.rarity-rare {
+  animation: rare-rays-burst 1.25s cubic-bezier(0.15, 0.8, 0.2, 1) forwards;
+}
+@keyframes rare-rays-burst {
+  0% { transform: scale(0.2) rotate(0deg); opacity: 0; }
+  25% { opacity: 0.9; transform: scale(1.0) rotate(10deg); }
+  100% { transform: scale(2.3) rotate(35deg); opacity: 0; }
+}
+
+
+/* ---------------- 紫色史诗卡牌 (Epic) - 纯正紫色奥术光芒 ---------------- */
+/* 卡面高光瞬时紫芒闪烁后消散 */
+.pack-card-slot.rarity-epic.is-revealed .pack-card-front {
+  animation: epic-card-flare 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes epic-card-flare {
+  0% { filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.7)); }
+  30% { filter: drop-shadow(0 0 32px rgba(216, 140, 255, 1)) drop-shadow(0 0 55px rgba(168, 85, 247, 0.9)) drop-shadow(0 0 85px rgba(126, 34, 206, 0.65)); }
+  100% { filter: drop-shadow(0 0 0px transparent); }
+}
+
+/* 紫色奥术冲击波光环向外扩散消散 */
+.card-rarity-aura.rarity-epic {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  border: 3.5px solid rgba(216, 140, 255, 0.95);
+  background: radial-gradient(circle, rgba(192, 132, 252, 0.45) 15%, rgba(147, 51, 234, 0.25) 50%, transparent 75%);
+  pointer-events: none;
+  opacity: 0;
+}
+.pack-card-slot.rarity-epic.is-revealed .card-rarity-aura.rarity-epic {
+  animation: epic-shockwave-burst 1.45s cubic-bezier(0.15, 0.8, 0.2, 1) forwards;
+}
+@keyframes epic-shockwave-burst {
+  0% { transform: scale(0.3); opacity: 0; }
+  25% { opacity: 1; transform: scale(0.95); box-shadow: 0 0 35px rgba(168, 85, 247, 0.95); }
+  70% { opacity: 0.65; transform: scale(1.75); filter: blur(3px); }
+  100% { opacity: 0; transform: scale(2.35); filter: blur(7px); }
+}
+
+/* 紫色奥术星芒粒子四散迸发 */
+.card-burst-sparks.rarity-epic {
+  position: absolute;
+  inset: -35px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle 3.5px at 50% 8%, #f0abfc 100%, transparent),
+    radial-gradient(circle 3px at 78% 18%, #e879f9 100%, transparent),
+    radial-gradient(circle 4px at 92% 38%, #c084fc 100%, transparent),
+    radial-gradient(circle 3px at 90% 65%, #a855f7 100%, transparent),
+    radial-gradient(circle 4.5px at 75% 85%, #d946ef 100%, transparent),
+    radial-gradient(circle 3.5px at 50% 92%, #f0abfc 100%, transparent),
+    radial-gradient(circle 3px at 22% 82%, #c084fc 100%, transparent),
+    radial-gradient(circle 4px at 8% 60%, #e879f9 100%, transparent),
+    radial-gradient(circle 3px at 10% 35%, #a855f7 100%, transparent),
+    radial-gradient(circle 4px at 25% 15%, #d946ef 100%, transparent);
+}
+.pack-card-slot.rarity-epic.is-revealed .card-burst-sparks.rarity-epic {
+  animation: epic-sparks-burst 1.45s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+@keyframes epic-sparks-burst {
+  0% { transform: scale(0.3) rotate(0deg); opacity: 0; }
+  28% { opacity: 1; transform: scale(1.15) rotate(20deg); filter: drop-shadow(0 0 10px #e879f9); }
+  100% { transform: scale(2.6) rotate(60deg); opacity: 0; filter: blur(3.5px); }
+}
+
+/* 紫色辐射奥术光束发散消失 */
+.card-burst-rays.rarity-epic {
+  position: absolute;
+  inset: -55px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(216, 140, 255, 0.75) 12deg,
+    transparent 24deg,
+    transparent 45deg,
+    rgba(168, 85, 247, 0.7) 57deg,
+    transparent 69deg,
+    transparent 90deg,
+    rgba(216, 140, 255, 0.75) 102deg,
+    transparent 114deg,
+    transparent 135deg,
+    rgba(168, 85, 247, 0.7) 147deg,
+    transparent 159deg,
+    transparent 180deg,
+    rgba(216, 140, 255, 0.75) 192deg,
+    transparent 204deg,
+    transparent 225deg,
+    rgba(168, 85, 247, 0.7) 237deg,
+    transparent 249deg,
+    transparent 270deg,
+    rgba(216, 140, 255, 0.75) 282deg,
+    transparent 294deg,
+    transparent 315deg,
+    rgba(168, 85, 247, 0.7) 327deg,
+    transparent 339deg,
+    transparent 360deg
+  );
+  mask-image: radial-gradient(circle, rgba(0,0,0,1) 40%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 40%, transparent 78%);
+}
+.pack-card-slot.rarity-epic.is-revealed .card-burst-rays.rarity-epic {
+  animation: epic-rays-burst 1.45s cubic-bezier(0.15, 0.8, 0.2, 1) forwards;
+}
+@keyframes epic-rays-burst {
+  0% { transform: scale(0.25) rotate(0deg); opacity: 0; }
+  25% { opacity: 1; transform: scale(1.05) rotate(15deg); }
+  100% { transform: scale(2.5) rotate(45deg); opacity: 0; }
+}
+
+
+/* ---------------- 橙色传说卡牌 (Legendary) - 震撼金色与烈焰橙光 ---------------- */
+/* 卡面高光瞬时烈焰闪耀后消散 */
+.pack-card-slot.rarity-legendary.is-revealed .pack-card-front {
+  animation: legendary-card-flare 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes legendary-card-flare {
+  0% { filter: drop-shadow(0 0 20px #ff6600); }
+  30% { filter: drop-shadow(0 0 40px #ff5500) drop-shadow(0 0 75px #ffa500) drop-shadow(0 0 115px #ffd700) drop-shadow(0 0 160px rgba(255, 80, 0, 0.95)); }
+  100% { filter: drop-shadow(0 0 0px transparent); }
+}
+
+/* 金色烈焰冲击波向外猛烈扩散消散 */
+.card-rarity-aura.rarity-legendary {
+  position: absolute;
+  inset: -30px;
+  border-radius: 50%;
+  border: 4px solid #ffd700;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 15%, rgba(255, 100, 0, 0.35) 45%, transparent 78%);
+  pointer-events: none;
+  opacity: 0;
+}
+.pack-card-slot.rarity-legendary.is-revealed .card-rarity-aura.rarity-legendary {
+  animation: legendary-shockwave-burst 1.75s cubic-bezier(0.12, 0.8, 0.2, 1) forwards;
+}
+@keyframes legendary-shockwave-burst {
+  0% { transform: scale(0.3); opacity: 0; }
+  22% { opacity: 1; transform: scale(1.0); box-shadow: 0 0 50px #ff6600, 0 0 90px #ffa500; }
+  65% { opacity: 0.7; transform: scale(1.9); filter: blur(3px); }
+  100% { opacity: 0; transform: scale(2.7); filter: blur(9px); }
+}
+
+/* 橙金烈焰粒子四散迸发 */
+.card-burst-sparks.rarity-legendary {
+  position: absolute;
+  inset: -45px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle 4.5px at 50% 6%, #fff 0%, #ffea00 100%, transparent),
+    radial-gradient(circle 3.5px at 75% 15%, #ff9e00 100%, transparent),
+    radial-gradient(circle 5px at 94% 35%, #ff6000 100%, transparent),
+    radial-gradient(circle 3.5px at 92% 65%, #ffd000 100%, transparent),
+    radial-gradient(circle 5px at 75% 88%, #ff3c00 100%, transparent),
+    radial-gradient(circle 4px at 50% 94%, #fff 0%, #ffea00 100%, transparent),
+    radial-gradient(circle 3.5px at 25% 88%, #ff9e00 100%, transparent),
+    radial-gradient(circle 5px at 6% 65%, #ff6000 100%, transparent),
+    radial-gradient(circle 3.5px at 8% 35%, #ffd000 100%, transparent),
+    radial-gradient(circle 4.5px at 25% 15%, #ff3c00 100%, transparent),
+    radial-gradient(circle 3px at 65% 25%, #ffea00 100%, transparent),
+    radial-gradient(circle 3px at 80% 50%, #ff9e00 100%, transparent),
+    radial-gradient(circle 3px at 65% 75%, #ff6000 100%, transparent),
+    radial-gradient(circle 3px at 35% 75%, #ffd000 100%, transparent),
+    radial-gradient(circle 3px at 20% 50%, #ffea00 100%, transparent),
+    radial-gradient(circle 3px at 35% 25%, #ff9e00 100%, transparent);
+}
+.pack-card-slot.rarity-legendary.is-revealed .card-burst-sparks.rarity-legendary {
+  animation: legendary-sparks-burst 1.75s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+@keyframes legendary-sparks-burst {
+  0% { transform: scale(0.3) rotate(0deg); opacity: 0; }
+  25% { opacity: 1; transform: scale(1.2) rotate(25deg); filter: drop-shadow(0 0 12px #ffe600); }
+  100% { transform: scale(2.8) rotate(75deg); opacity: 0; filter: blur(4px); }
+}
+
+/* 巨幅耀眼旋转金芒光柱发散消失 */
+.card-burst-rays.rarity-legendary {
+  position: absolute;
+  inset: -70px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 230, 0, 0.85) 10deg,
+    transparent 20deg,
+    transparent 36deg,
+    rgba(255, 120, 0, 0.8) 46deg,
+    transparent 56deg,
+    transparent 72deg,
+    rgba(255, 230, 0, 0.85) 82deg,
+    transparent 92deg,
+    transparent 108deg,
+    rgba(255, 120, 0, 0.8) 118deg,
+    transparent 128deg,
+    transparent 144deg,
+    rgba(255, 230, 0, 0.85) 154deg,
+    transparent 164deg,
+    transparent 180deg,
+    rgba(255, 120, 0, 0.8) 190deg,
+    transparent 200deg,
+    transparent 216deg,
+    rgba(255, 230, 0, 0.85) 226deg,
+    transparent 236deg,
+    transparent 252deg,
+    rgba(255, 120, 0, 0.8) 262deg,
+    transparent 272deg,
+    transparent 288deg,
+    rgba(255, 230, 0, 0.85) 298deg,
+    transparent 308deg,
+    transparent 324deg,
+    rgba(255, 120, 0, 0.8) 334deg,
+    transparent 344deg,
+    transparent 360deg
+  );
+  mask-image: radial-gradient(circle, rgba(0,0,0,1) 35%, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 35%, transparent 80%);
+}
+.pack-card-slot.rarity-legendary.is-revealed .card-burst-rays.rarity-legendary {
+  animation: legendary-rays-burst 1.75s cubic-bezier(0.12, 0.8, 0.2, 1) forwards;
+}
+@keyframes legendary-rays-burst {
+  0% { transform: scale(0.2) rotate(0deg); opacity: 0; }
+  22% { opacity: 1; transform: scale(1.1) rotate(20deg); filter: drop-shadow(0 0 20px #ff9e00); }
+  100% { transform: scale(2.8) rotate(65deg); opacity: 0; }
+}
+
+
+/* ==========================================================================
+   HSA 移植特性：战斗详情（BattleLog）与 中央出牌大图展示（CardShowcase）
+   ========================================================================== */
+
+/* ── 战斗详情抽屉面板 ── */
+.battle-log {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(28, 22, 16, 0.96), rgba(20, 16, 12, 0.98));
+  border: 1px solid rgba(196, 160, 90, 0.45);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+  z-index: 45;
+  pointer-events: auto;
+  transition: width 0.2s ease, max-height 0.2s ease, top 0.2s ease;
+  width: 26px;
+  max-height: 125px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+.battle-log.is-open {
+  top: 14%;
+  transform: none;
+  width: min(290px, 44vw);
+  max-height: 68%;
+  cursor: default;
+  z-index: 55;
+}
+.battle-log-tab {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 2px;
+  padding: 8px 3px;
+  font-size: 11.5px;
+  color: #c4a05a;
+  text-align: center;
+  white-space: nowrap;
+}
+.battle-log.is-open .battle-log-tab {
+  display: none;
+}
+.battle-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(196, 160, 90, 0.3);
+  color: #e8d9b8;
+  font-size: 12.5px;
+  font-weight: 600;
+  flex: 0 0 auto;
+  background: rgba(0, 0, 0, 0.25);
+}
+.battle-log-head small {
+  color: #9a8b72;
+  font-size: 10.5px;
+  font-weight: normal;
+}
+.battle-log-collapse {
+  background: none;
+  border: none;
+  color: #9a8b72;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 4px;
+}
+.battle-log-collapse:hover,
+.battle-log-collapse:active {
+  color: #f0c060;
+  background: rgba(255, 255, 255, 0.08);
+}
+.battle-log-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px;
+  scrollbar-width: thin;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.battle-log-empty {
+  color: #7d7266;
+  font-size: 11.5px;
+  padding: 12px;
+  text-align: center;
+}
+.battle-log-line {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 6px;
+  margin-bottom: 2px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #cbbfa8;
+  border-left: 2.5px solid transparent;
+  cursor: pointer;
+}
+.battle-log-line:hover,
+.battle-log-line:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+.log-side {
+  flex: 0 0 14px;
+  font-size: 9.5px;
+  color: #8d8171;
+  text-align: center;
+  font-weight: bold;
+}
+.log-text {
+  flex: 1;
+  word-break: break-word;
+}
+.log-amount {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: #f0c060;
+  font-size: 11px;
+}
+.log-count {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: #8d8171;
+  padding-left: 2px;
+}
+.side-me {
+  border-left-color: #6fa8dc;
+}
+.side-foe {
+  border-left-color: #d07a6a;
+}
+.side-me .log-side {
+  color: #8fc0e8;
+}
+.side-foe .log-side {
+  color: #e8a090;
+}
+.k-damage .log-text { color: #e88b7a; }
+.k-heal .log-text { color: #86c98a; }
+.k-death .log-text { color: #b0a0c8; }
+.k-play .log-text { color: #f0d9a0; }
+.k-summon .log-text { color: #9ed0b0; }
+.k-burn .log-text { color: #d8a070; }
+.k-secret .log-text { color: #c8a0e0; }
+.k-turn .log-text { color: #8a8070; font-style: italic; font-size: 10.5px; }
+.k-message .log-text { color: #a8b8c8; }
+
+.battle-log-preview {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 10px;
+  z-index: 60;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.85));
+  animation: showcase-in 0.15s ease-out;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* ── 中央打牌大图展示（CardShowcase） ── */
+.card-showcase {
+  position: fixed;
+  left: 50%;
+  top: 7%;
+  transform: translate(-50%, 0);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  background: linear-gradient(145deg, rgba(32, 25, 18, 0.97), rgba(22, 17, 12, 0.99));
+  border: 2px solid rgba(196, 160, 90, 0.65);
+  border-radius: 12px;
+  box-shadow: 0 14px 45px rgba(0, 0, 0, 0.85);
+  z-index: 70;
+  cursor: pointer;
+  animation: showcase-in 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  max-width: min(520px, 80vw);
+  pointer-events: auto;
+  user-select: none;
+}
+@keyframes showcase-in {
+  0% { opacity: 0; transform: translate(-50%, -18px) scale(0.95); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.card-showcase.showcase-leaving {
+  animation: showcase-out 0.22s ease-in forwards;
+}
+@keyframes showcase-out {
+  0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -14px) scale(0.95); }
+}
+.showcase-mine {
+  border-color: rgba(110, 168, 220, 0.8);
+}
+.showcase-foe {
+  border-color: rgba(208, 122, 106, 0.8);
+}
+.showcase-opening {
+  border-color: rgba(240, 192, 96, 0.9);
+}
+.showcase-badge {
+  position: absolute;
+  left: 12px;
+  top: -10px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: #2a2118;
+  border: 1px solid currentColor;
+}
+.showcase-mine .showcase-badge { color: #8fc0e8; }
+.showcase-foe .showcase-badge { color: #e8a090; }
+.showcase-opening .showcase-badge { color: #f0c060; }
+
+.showcase-art {
+  flex: 0 0 76px;
+  width: 76px;
+  height: 76px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(196, 160, 90, 0.4);
+  background: #14100c;
+}
+.showcase-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.showcase-info {
+  flex: 1;
+  min-width: 0;
+  color: #e0d4bc;
+}
+.showcase-info h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  color: #f5e6c8;
+  letter-spacing: 0.3px;
+  font-weight: 700;
+}
+.showcase-stats {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+}
+.showcase-stats .sc-atk {
+  color: #f0c060;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.showcase-stats .sc-hp {
+  color: #e8705a;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.showcase-stats .sc-cost {
+  color: #8fc0e8;
+  font-weight: bold;
+}
+.showcase-stats .sc-type {
+  color: #9a8b72;
+}
+.showcase-text {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #cfc2a8;
+  max-height: 52px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.showcase-note {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  color: #f0c060;
+}
+.showcase-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 4px;
+  font-size: 9.5px;
+  color: #7d7266;
+}
+
+
+/* ==========================================================================
+   Hero Power Long-Press Floating Preview (Hearthstone Authentic)
+   ========================================================================== */
+.hero-power-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.hero-power-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  cursor: default;
+  animation: scaleIn 0.18s cubic-bezier(0.18, 0.9, 0.32, 1.2);
+}
+
+.power-preview-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f7eed7;
+  background: rgba(26, 20, 14, 0.92);
+  border: 1px solid #c8a355;
+  border-radius: 20px;
+  padding: 3px 18px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7), 0 0 10px rgba(200, 163, 85, 0.3);
+  letter-spacing: 1px;
+}
+
+.preview-power-large {
+  transform: scale(1.12);
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 16px rgba(243, 196, 92, 0.35));
+}
+
+.power-preview-hint {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: rgba(240, 225, 195, 0.65);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  padding: 3px 12px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.power-preview-hint:hover {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.enemy-power-hitbox {
+  cursor: pointer;
+}
+
+.board-hitbox.power-hitbox:active {
+  transform: translate(-50%, -50%) scale(0.92);
+  filter: brightness(1.25);
+}

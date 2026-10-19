@@ -1,0 +1,14 @@
+{
+  "version": "36.4.2.251951",
+  "build": "251951",
+  "frozenAt": "2026-09-14",
+  "source": "https://api.hearthstonejson.com/v1/251951/zhCN/cards.json",
+  "entities": 35807,
+  "collectibleRecords": 8154,
+  "sha256": "81b3a31ad21278d88d315087fa0fbe81569bf982d15dc880071c5ca6b606f9e3",
+  "generatedAt": "2026-09-13T19:13:06.370Z",
+  "sources": [
+    "https://github.com/HearthSim/hsdata",
+    "https://hearthstonejson.com/docs/images.html"
+  ]
+}
