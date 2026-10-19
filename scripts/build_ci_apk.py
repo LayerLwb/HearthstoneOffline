@@ -10,9 +10,11 @@ Hearthstone Offline APK CI/CD Build & Signing Script
 3. 支持构建内置完整原画包 APK（~800MB）。
 4. 注入最新编译的 Android 核心组件（classes.dex、AndroidManifest.xml、resources.arsc）。
 5. 注入最新的 Web 核心引擎代码（index.html, index.js, ai.worker.js, index.css, data 等）。
-6. 使用 zipalign 4 字节对齐。
-7. 使用与既有版本完全一致的签名证书（androiddebugkey, SHA256: 61:95:63:01:...），
-   并通过 apksigner 强制启用 v1 + v2 + v3 签名方案，确保 Android 11+ (API 34) 完美解析并支持覆盖安装！
+6. 严格执行 Android 11+ (API 30+) 规范：
+   - resources.arsc 必须不压缩存储 (ZIP_STORED)；
+   - 所有图片静态资源不压缩存储 (ZIP_STORED)；
+   - 执行 zipalign 4 字节边界内存对齐；
+   - 使用 apksigner 强制启用 v1 + v2 + v3 签名方案，彻底消除安装失败(-124)及解析错误(33)！
 """
 
 import os
@@ -67,6 +69,19 @@ def find_tool(name):
                 return c
     return None
 
+def write_apk_entry(dst_zip, src_path, arcname):
+    """
+    按照 Android 规范写入条目：
+    - resources.arsc 必须且只能是未压缩 (ZIP_STORED)，否则 Android 11+ 报 -124 错误
+    - 图像与音频等不可进一步压缩格式采用 ZIP_STORED 以支持 mmap 零拷贝
+    - 其余代码与网页文本使用 ZIP_DEFLATED
+    """
+    ext = os.path.splitext(arcname)[1].lower()
+    if arcname == "resources.arsc" or ext in [".png", ".webp", ".jpg", ".jpeg", ".ogg", ".mp3"]:
+        dst_zip.write(src_path, arcname, compress_type=zipfile.ZIP_STORED)
+    else:
+        dst_zip.write(src_path, arcname, compress_type=zipfile.ZIP_DEFLATED)
+
 def download_base_apk(target_path, url):
     print(f"[*] Base APK not found locally. Downloading from {url}...")
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
@@ -93,21 +108,21 @@ def build_standalone_apk(version, unsigned_apk, embed_art=False, hso_zip=None):
         print(f"[-] Error: Prebuilt classes.dex not found at {prebuilt_dir}")
         sys.exit(1)
 
-    with zipfile.ZipFile(unsigned_apk, 'w', compression=zipfile.ZIP_DEFLATED) as dst:
-        # 1. Android core prebuilts
-        dst.write(os.path.join(prebuilt_dir, "AndroidManifest.xml"), "AndroidManifest.xml")
-        dst.write(os.path.join(prebuilt_dir, "classes.dex"), "classes.dex")
-        dst.write(os.path.join(prebuilt_dir, "resources.arsc"), "resources.arsc")
+    with zipfile.ZipFile(unsigned_apk, 'w') as dst:
+        # 1. Android core prebuilts (严格指定压缩类型)
+        write_apk_entry(dst, os.path.join(prebuilt_dir, "AndroidManifest.xml"), "AndroidManifest.xml")
+        write_apk_entry(dst, os.path.join(prebuilt_dir, "classes.dex"), "classes.dex")
+        write_apk_entry(dst, os.path.join(prebuilt_dir, "resources.arsc"), "resources.arsc")
 
-        # 2. Res drawables & icons
+        # 2. Res drawables & icons (图片不压缩存储)
         for root, dirs, files in os.walk(res_dir):
             for f in files:
                 full_path = os.path.join(root, f)
                 rel_path = os.path.relpath(full_path, os.path.join(BASE_DIR, "android", "app", "src", "main"))
-                dst.write(full_path, rel_path.replace("\\", "/"))
+                write_apk_entry(dst, full_path, rel_path.replace("\\", "/"))
 
         # 3. Web assets
-        dst.write(os.path.join(web_dir, "index.html"), "assets/index.html")
+        write_apk_entry(dst, os.path.join(web_dir, "index.html"), "assets/index.html")
 
         # web/assets/
         web_assets = os.path.join(web_dir, "assets")
@@ -115,7 +130,7 @@ def build_standalone_apk(version, unsigned_apk, embed_art=False, hso_zip=None):
             for f in os.listdir(web_assets):
                 fp = os.path.join(web_assets, f)
                 if os.path.isfile(fp):
-                    dst.write(fp, f"assets/assets/{f}")
+                    write_apk_entry(dst, fp, f"assets/assets/{f}")
 
         # web/data/
         web_data = os.path.join(web_dir, "data")
@@ -123,9 +138,9 @@ def build_standalone_apk(version, unsigned_apk, embed_art=False, hso_zip=None):
             for f in os.listdir(web_data):
                 fp = os.path.join(web_data, f)
                 if os.path.isfile(fp):
-                    dst.write(fp, f"assets/data/{f}")
+                    write_apk_entry(dst, fp, f"assets/data/{f}")
 
-        # 4. 可选：若指定 embed_art 则将 HSO.zip 中的原画并入 APK 内部
+        # 4. 可选：若指定 embed_art 则将 HSO.zip 中的原画并入 APK 内部 (原画为 webp 采用 STORED)
         if embed_art:
             zip_candidate = hso_zip or os.path.join(BASE_DIR, "HSO.zip")
             if os.path.exists(zip_candidate):
@@ -136,7 +151,7 @@ def build_standalone_apk(version, unsigned_apk, embed_art=False, hso_zip=None):
                             rel = item.filename
                             if not rel.startswith("assets/"):
                                 rel = "assets/" + rel
-                            dst.writestr(rel, art_zip.read(item.filename))
+                            dst.writestr(rel, art_zip.read(item.filename), compress_type=zipfile.ZIP_STORED)
                 print("[+] Embedded art assets successfully.")
             else:
                 print(f"[!] Warning: embed_art requested but {zip_candidate} not found. Building without embedded art.")
@@ -169,7 +184,7 @@ def build_from_base_apk(version, unsigned_apk, base_apk, embed_art=False):
                 injections[f"assets/data/{df}"] = os.path.join(data_dir, df)
 
     with zipfile.ZipFile(base_apk, 'r') as src_zip:
-        with zipfile.ZipFile(unsigned_apk, 'w', compression=zipfile.ZIP_DEFLATED) as dst_zip:
+        with zipfile.ZipFile(unsigned_apk, 'w') as dst_zip:
             for item in src_zip.infolist():
                 # Strip old signature
                 if item.filename.startswith("META-INF/"):
@@ -179,9 +194,11 @@ def build_from_base_apk(version, unsigned_apk, base_apk, embed_art=False):
                     continue
                 # Replace updated files
                 if item.filename in injections and os.path.exists(injections[item.filename]):
-                    dst_zip.write(injections[item.filename], item.filename)
+                    write_apk_entry(dst_zip, injections[item.filename], item.filename)
                 else:
                     data = src_zip.read(item.filename)
+                    if item.filename == "resources.arsc":
+                        item.compress_type = zipfile.ZIP_STORED
                     dst_zip.writestr(item, data)
 
 def sign_and_align_apk(unsigned_apk, output_apk, keystore, storepass, keypass, keyalias):
@@ -195,7 +212,7 @@ def sign_and_align_apk(unsigned_apk, output_apk, keystore, storepass, keypass, k
     if os.path.exists(aligned_apk):
         os.remove(aligned_apk)
 
-    # 1. 运行 zipalign 对齐
+    # 1. 运行 zipalign 4 字节对齐 (确保 resources.arsc 对齐)
     source_to_sign = unsigned_apk
     if zipalign_bin:
         print(f"[*] Running zipalign (4-byte alignment) with {zipalign_bin}...")
@@ -204,6 +221,13 @@ def sign_and_align_apk(unsigned_apk, output_apk, keystore, storepass, keypass, k
         if res.returncode == 0 and os.path.exists(aligned_apk):
             print(f"[+] APK successfully aligned ({os.path.getsize(aligned_apk):,} bytes).")
             source_to_sign = aligned_apk
+
+            # 校验对齐
+            check_cmd = [zipalign_bin, "-c", "-v", "4", aligned_apk]
+            cres = subprocess.run(check_cmd, capture_output=True, text=True)
+            for line in cres.stdout.splitlines():
+                if "resources.arsc" in line or "Verification" in line:
+                    print("    ", line)
         else:
             print(f"[!] Warning: zipalign returned code {res.returncode}: {res.stderr}")
     else:
